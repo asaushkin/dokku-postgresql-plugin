@@ -17,8 +17,7 @@ Commands
 --------
 ```
 $ dokku help
-     postgresql:console <app> Launch a postgresql console for a given app
-     postgresql:create <app>  Create a PostgreSQL database
+     postgresql:psql <app>    Launch a postgresql console for a given app or as admin user (without appname)
      postgresql:delete <app>  Delete specified PostgreSQL database
      postgresql:list          List all databases
      postgresql:start         Start the PostgreSQL docker container if it isn't running
@@ -59,3 +58,11 @@ DATABASE_URL: postgres://foo:ultrastrongpassword@172.17.0.28:5432/foo
 -----> Deploying foo ...
 -----> Deploy complete!
 ```
+
+Authors
+------------
+
+Andrew G. Saushkin <asaushkin@gmail.com>
+Jeffery Utter https://github.com/jeffutter/dokku-postgresql-plugin
+
+
