@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 #set -e;
 
 APP=$2
@@ -6,138 +6,211 @@ APP=$2
 OLDHOME=$HOME
 HOME="$DOKKU_ROOT/.postgresql"
 PGADMIN=postgres
+postgresql_database="${APP}"
+db_image=asaushkin/postgresql
 
 check_exists() {
-  if [[ ! -d "$DOKKU_ROOT/$APP" ]]; then
-    echo "App must exist before creating postgresql storage for it"
-    exit 1
-  fi
+    if [[ ! -d "$DOKKU_ROOT/$APP" ]]; then
+        echo "App must exist before creating postgresql storage for it"
+        exit 1
+    fi
 }
 
 check_app() {
-  if [[ -z "$APP" ]]; then
-    echo "You must specify an app name"
-    exit 1
-  fi
+    if [[ -z "$APP" ]]; then
+        echo "You must specify an app name"
+        exit 1
+    fi
 }
 
 check_container() {
-  if [[ -z "$id" ]]; then
-    echo "Postgresql container not started cannot continue. Start with dokku postgresql:start"
-    exit 1
-  fi
-}
-
-admin_pass=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
-postgresql_database="${APP}"
-
-db_image=asaushkin/postgresql
-
-id=$(docker ps | grep "$db_image":latest |  awk '{print $1}')
-if [[ -n "$id" ]]; then
-  postgresql_public_ip=$(docker port ${id} 5432 | awk '{split($0,a,":"); print a[1]}')
-  postgresql_private_ip=$(docker inspect ${id} | grep IPAddress | awk '{ print $2 }' | tr -d ',"')
-  postgresql_port=$(docker port ${id} 5432 | awk '{split($0,a,":"); print a[2]}')
-  if [[ $postgresql_public_ip = "0.0.0.0" ]]; then
-    postgresql_public_ip=localhost
-  fi
-fi
-
-case "$1" in
-  postgresql:psql)
-
-    if [ -z "$2" ]; then    
-        check_container
-        PGPASSWORD=$(cat "$DOKKU_ROOT/.postgresql/admin_pw") PGUSER=$PGADMIN psql -p "$postgresql_port" -h localhost postgres
-    else
-        check_container
-        check_app
-        check_exists
-
-        if [ ! -r "$DOKKU_ROOT/.postgresql/pass_$APP" ]; then
-            echo ERROR: Database $APP does not exist
-            exit 1 
-        fi
-
-        PGPASSWORD=$(cat "$DOKKU_ROOT/.postgresql/pass_$APP") PGUSER="$APP" psql -p "$postgresql_port" -h localhost "$postgresql_database"
-    fi
-    ;;
-  postgresql:create)
-    check_container
-    check_app
-    check_exists
-
-    # Check 
-    if [ -r "$DOKKU_ROOT/.postgresql/pass_$APP" ]; then
-        echo ERROR: Database ${postgresql_database} for application ${APP} already exists.
+    if [[ -z "$id" ]]; then
+        echo "Postgresql container not started cannot continue. Start with dokku postgresql:start"
         exit 1
     fi
-    
-    postgresql_password=$(apg -M NCL -m 16 -x 16 -n 1)
-    echo $postgresql_password > "$DOKKU_ROOT/.postgresql/pass_$APP"
+}
 
-    admin_pw=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
+postgres_password() {
+    cat "$DOKKU_ROOT/.postgresql/admin_pw"
+}
 
-    PGPASSWORD="$admin_pw" PGUSER=$PGADMIN psql -e -A -X -t -h localhost  <<SQL
+appuser_password() {
+    cat "$DOKKU_ROOT/.postgresql/pass_$APP"
+}
 
-    -- TODO: Check if user or database already exists
-    CREATE USER "${APP}" WITH PASSWORD '${postgresql_password}';
-    CREATE DATABASE "${postgresql_database}" WITH OWNER "${APP}";
-    ALTER DATABASE "${postgresql_database}" SET TIMEZONE TO 'UTC';
+# $1 - dbname (if none, then postgres with root privs)
+# $2 - sql code
+# $3 - psql parameters
+execute() {
+    local dbhost=localhost
+    local dbport=5432
 
+    if [ -z "$1" -o x"$1" = x"postgres" ]; then
+        local dbname=postgres
+        local dbuser=postgres
+        local dbpass=$(postgres_password)
+    else
+        local dbname="$APP"
+        local dbuser="$APP"
+        local dbpass=$(appuser_password)
+    fi
+
+    if [ ! -z "$2" ]; then
+        PGPASSWORD=$dbpass psql $3 -h $dbhost -p $dbport -U $dbuser -d $dbname <<SQL
+$2
 SQL
-
-    # WTF?
-    postgresql_port=5432
-
-    dokku config:set "$APP" DATABASE_URL="postgres://${APP}:${postgresql_password}@${postgresql_private_ip}:${postgresql_port}/${postgresql_database}"
-    ;;
-  postgresql:delete)
-    check_container
-    check_app
-    check_exists
-
-    admin_pw=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
-    PGPASSWORD="$admin_pw" PGUSER=$PGADMIN psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "DROP DATABASE \"${postgresql_database}\";"
-    PGPASSWORD="$admin_pw" PGUSER=$PGADMIN psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "DROP USER \"${APP}\";"
-
-    dokku config:unset "$APP" DATABASE_URL
-    rm "$DOKKU_ROOT/.postgresql/pass_$APP"
-    ;;
-  postgresql:list)
-    check_container
-
-    admin_pw=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
-    PGPASSWORD="$admin_pw" PGUSER=$PGADMIN psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "\list"
-    ;;
-  postgresql:start)
-    if [[ "$id" != "" ]]; then
-      echo "Postgresql container already running with ID: ${id}"
     else
-      [[ $(docker run --rm=true "$db_image" lsb_release -cs) = 'trusty' ]] && docker_psql_version="9.3" || docker_psql_version="9.1"
-      docker run -p 5432:5432 -d -v "$DOKKU_ROOT/.postgresql/data":"/var/lib/postgresql/$docker_psql_version/main" "$db_image" bash -c "chown -R postgres:postgres /var/lib/postgresql/$docker_psql_version/main; su postgres -c \"/usr/lib/postgresql/$docker_psql_version/bin/postgres -D /var/lib/postgresql/$docker_psql_version/main -c config_file=/etc/postgresql/$docker_psql_version/main/postgresql.conf\""
+        PGPASSWORD=$dbpass psql $3 -h $dbhost -p $dbport -U $dbuser -d $dbname
     fi
+}
+
+id=$(docker ps | grep "$db_image":latest |  awk '{print $1}')
+
+case "$1" in
+    postgresql:psql)
+
+        check_container
+        if [ -z "$APP" ]; then    
+            execute postgres
+        else
+            if [[ ! -r "$DOKKU_ROOT/.postgresql/pass_$APP" ]]; then
+                echo "ERROR: Database $APP does not exist or not properly initialized"
+                exit 1 
+            fi
+            execute "$APP"
+        fi
+        ;;
+
+    postgresql:create)
+
+        check_container
+        check_app
+
+        # Check already initiaized db
+        if [ -r "$DOKKU_ROOT/.postgresql/pass_$APP" ]; then
+            echo ERROR: Database ${postgresql_database} for application ${APP} already exists. Try \"dokku postgresql:delete "$APP"\" first.
+            exit 1
+        fi
+        
+        if [[ $(execute postgres "select count(*) from pg_roles where rolname = '${APP}'" '-At') -eq 0 ]]; then
+            apg -M NCL -m 16 -x 16 -n 1 > "$DOKKU_ROOT/.postgresql/pass_$APP"
+            execute postgres "create user \"${APP}\" with password '$(appuser_password)'" '-X'
+        else
+            echo WARN: User "$APP" already exists in the PostgreSQL instance, skipping creation.
+        fi
+
+        if [[ $(execute postgres "select count(*) from pg_database where datname = '${APP}'" '-At') -eq 0 ]]; then
+            execute postgres "create database \"${postgresql_database}\" with owner \"${APP}\"" '-X'
+            execute postgres "alter database \"${postgresql_database}\" set timezone to 'UTC'" '-X'
+        else
+            echo WARN: Database "$APP" already exists in the PostgreSQL instance, skipping creation.
+        fi
+
+        if [[ -d "$DOKKU_ROOT/$APP" ]]; then
+            dokku config:set "$APP" DATABASE_URL="postgres://${APP}:$(appuser_password)@localhost:5432/${APP}"
+        fi
     ;;
-  postgresql:stop)
-    check_container
-    docker stop ${id}
+
+    postgresql:delete)
+        check_container
+        check_app
+    
+        execute postgres "drop database \"${APP}\"" "-X"
+        execute postgres "drop user \"${APP}\"" "-X"
+
+        if [[ -d "$DOKKU_ROOT/$APP" ]]; then
+            dokku config:unset "$APP" DATABASE_URL
+        fi
+
+        rm "$DOKKU_ROOT/.postgresql/pass_$APP"
     ;;
-  postgresql:status)
-    if [[ "$id" != "" ]]; then
-      echo "Postgresql container running with ID: ${id}"
-    else
-      echo "Postgresql container not running"
-    fi
+
+    postgresql:dblist)
+        check_container
+        execute postgres '\list'
     ;;
-  help)
-    cat && cat<<EOF
+
+    postgresql:start)
+    
+        if [[ "$id" != "" ]]; then
+            echo "Postgresql container already running with ID: ${id}"
+        else
+            docker run -p 5432:5432 -d \
+                -v "$DOKKU_ROOT/.postgresql/data":"/var/lib/postgresql/9.3/main" \
+                -v "$DOKKU_ROOT/.postgresql/etc":"/etc/postgresql/9.3/main" \
+                "$db_image" bash -c "su postgres -c '/usr/lib/postgresql/9.3/bin/postgres -D /var/lib/postgresql/9.3/main -c config_file=/etc/postgresql/9.3/main/postgresql.conf'"
+        fi
+    ;;
+
+    postgresql:stop)
+        check_container
+        docker stop ${id}
+    ;;
+
+    postgresql:status)
+        if [[ "$id" != "" ]]; then
+            echo "Postgresql container running with ID: ${id}"
+        else
+            echo "Postgresql container not running"
+        fi
+    ;;
+
+    postgresql:bash)
+        check_container
+        docker exec -it $id bash
+    ;;
+
+    postgresql:tsize)
+        check_container
+        check_app
+
+        execute $APP "
+select table_schema, table_name, 
+    pg_size_pretty( pg_relation_size( quote_ident( table_schema ) || '.' || quote_ident( table_name ) ) ) as size, 
+    pg_size_pretty( pg_total_relation_size( quote_ident( table_schema ) || '.' || quote_ident( table_name ) ) ) as total_size  
+from information_schema.tables 
+where table_type = 'BASE TABLE' and table_schema not in ('information_schema', 'pg_catalog') 
+order by pg_relation_size( quote_ident( table_schema ) || '.' || quote_ident( table_name ) ) desc, table_schema, table_name"
+    ;;
+
+    postgresql:dbsize)
+        check_container
+
+        execute postgres "SELECT datname, pg_size_pretty(pg_database_size(datname)) db_size FROM pg_database ORDER BY db_size"
+    ;;
+
+    postgresql:activity)
+        check_container
+
+        execute postgres "select * from pg_stat_activity"
+    ;;
+
+    postgresql:kill)
+        check_container
+
+        if [ ! -z "$2" ]; then
+            execute postgres "select pg_terminate_backend('$2')"
+        else
+            echo "Usage: dokku postgresql:kill <id>"
+        fi
+    ;;
+
+    help)
+        cat && cat<<EOF
     postgresql:psql <app>    Launch a postgresql console for a given app or as admin user (without appname)
     postgresql:create <app>  Create a Postgresql database
     postgresql:delete <app>  Delete specified Postgresql database
     postgresql:start         Start the Postgresql docker container if it isn't running
     postgresql:stop          Stop the Postgresql docker container
+    postgresql:bash          Enter into bash on the PostgreSQL docker container 
     postgresql:status        Shows status of Postgresql
-    postgresql:list          List all databases
+    postgresql:dblist        List all databases
+    postgresql:dbsize        Size all databases
+    postgresql:tsize <app>   Size all user tables in database <app>
+    postgresql:activity      Show current processes in the postgresql instance
+    postgresql:kill <id>     Terminate a backend process
 EOF
     ;;
 esac
+
+
