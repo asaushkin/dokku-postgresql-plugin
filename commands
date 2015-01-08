@@ -9,13 +9,6 @@ PGADMIN=postgres
 postgresql_database="${APP}"
 db_image=asaushkin/postgresql
 
-check_exists() {
-    if [[ ! -d "$DOKKU_ROOT/$APP" ]]; then
-        echo "App must exist before creating postgresql storage for it"
-        exit 1
-    fi
-}
-
 check_app() {
     if [[ -z "$APP" ]]; then
         echo "You must specify an app name"
@@ -64,7 +57,7 @@ SQL
     fi
 }
 
-id=$(docker ps | grep "$db_image":latest |  awk '{print $1}')
+id=$(docker ps | grep "$db_image" |  awk '{print $1}')
 
 case "$1" in
     postgresql:psql)
