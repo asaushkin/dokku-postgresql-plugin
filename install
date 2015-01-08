@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Build MongoDB image
-db_image="jeffutter/postgresql"
+db_image="asaushkin/postgresql"
 docker pull "$db_image"
 
 [[ $(lsb_release -cs) = 'trusty' ]] && psql_version="9.3" || psql_version="9.1"
@@ -11,7 +10,7 @@ apt-get -y install "postgresql-client-$psql_version"
 if [[ ! -d "$DOKKU_ROOT/.postgresql" ]]; then
   mkdir -p "$DOKKU_ROOT/.postgresql"
   mkdir -p "$DOKKU_ROOT/.postgresql/data"
-  docker run "$db_image" tar -cvps -C "/var/lib/postgresql/$docker_psql_version/main" ./ | tar -xv -C "$DOKKU_ROOT/.postgresql/data/" -f -
+  docker run "$db_image" tar -cvp -C "/var/lib/postgresql/$docker_psql_version/main" ./ | tar -xv -C "$DOKKU_ROOT/.postgresql/data/" -f -
   docker run "$db_image" chown -R postgres:postgres "/var/lib/postgresql/$docker_psql_version/main"
 
   if [[ ! -f "$DOKKU_ROOT/.postgresql/admin_pw" ]]; then

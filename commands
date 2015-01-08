@@ -30,7 +30,7 @@ check_container() {
 admin_pass=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
 postgresql_database="${APP}_production"
 
-db_image=jeffutter/postgresql
+db_image=asaushkin/postgresql
 
 id=$(docker ps | grep "$db_image":latest |  awk '{print $1}')
 if [[ -n "$id" ]]; then
