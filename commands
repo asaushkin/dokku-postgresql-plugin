@@ -5,6 +5,7 @@ APP=$2
 
 OLDHOME=$HOME
 HOME="$DOKKU_ROOT/.postgresql"
+PGADMIN=postgres
 
 check_exists() {
   if [[ ! -d "$DOKKU_ROOT/$APP" ]]; then
@@ -28,7 +29,7 @@ check_container() {
 }
 
 admin_pass=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
-postgresql_database="${APP}_production"
+postgresql_database="${APP}"
 
 db_image=asaushkin/postgresql
 
@@ -46,7 +47,7 @@ case "$1" in
   postgresql:admin_console)
     check_container
 
-    PGPASSWORD=$(cat "$DOKKU_ROOT/.postgresql/admin_pw") PGUSER=root psql -p "$postgresql_port" -h localhost postgres
+    PGPASSWORD=$(cat "$DOKKU_ROOT/.postgresql/admin_pw") PGUSER=$PGADMIN psql -p "$postgresql_port" -h localhost postgres
     ;;
   postgresql:console)
     check_container
@@ -60,15 +61,29 @@ case "$1" in
     check_app
     check_exists
 
+    # Check 
+    if [ -r "$DOKKU_ROOT/.postgresql/pass_$APP" ]; then
+        echo ERROR: Database ${postgresql_database} for application ${APP} already exists.
+        exit 1
+    fi
+    
     postgresql_password=$(openssl rand -base64 32|base64)
     echo $postgresql_password > "$DOKKU_ROOT/.postgresql/pass_$APP"
 
     admin_pw=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
-    PGPASSWORD="$admin_pw" PGUSER=root psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "CREATE USER \"${APP}\" WITH PASSWORD '${postgresql_password}';"
-    PGPASSWORD="$admin_pw" PGUSER=root psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "CREATE DATABASE \"${postgresql_database}\";"
-    PGPASSWORD="$admin_pw" PGUSER=root psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "GRANT ALL PRIVILEGES ON DATABASE \"${postgresql_database}\" to \"${APP}\";"
 
+    PGPASSWORD="$admin_pw" PGUSER=$PGADMIN psql -e -A -X -t -h localhost  <<SQL
+
+    -- TODO: Check if user or database already exists
+    CREATE USER "${APP}" WITH PASSWORD '${postgresql_password}';
+    CREATE DATABASE "${postgresql_database}" WITH OWNER "${APP}";
+    ALTER DATABASE "${postgresql_database}" SET TIMEZONE TO 'UTC';
+
+SQL
+
+    # WTF?
     postgresql_port=5432
+
     dokku config:set "$APP" DATABASE_URL="postgres://${APP}:${postgresql_password}@${postgresql_private_ip}:${postgresql_port}/${postgresql_database}"
     ;;
   postgresql:delete)
@@ -77,16 +92,17 @@ case "$1" in
     check_exists
 
     admin_pw=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
-    PGPASSWORD="$admin_pw" PGUSER=root psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "DROP DATABASE \"${postgresql_database}\";"
-    PGPASSWORD="$admin_pw" PGUSER=root psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "DROP USER \"${APP}\";"
+    PGPASSWORD="$admin_pw" PGUSER=$PGADMIN psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "DROP DATABASE \"${postgresql_database}\";"
+    PGPASSWORD="$admin_pw" PGUSER=$PGADMIN psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "DROP USER \"${APP}\";"
 
     dokku config:unset "$APP" DATABASE_URL
+    rm "$DOKKU_ROOT/.postgresql/pass_$APP"
     ;;
   postgresql:list)
     check_container
 
     admin_pw=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
-    PGPASSWORD="$admin_pw" PGUSER=root psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "\list"
+    PGPASSWORD="$admin_pw" PGUSER=$PGADMIN psql -h "$postgresql_public_ip" -p "$postgresql_port" -w template1 <<< "\list"
     ;;
   postgresql:start)
     if [[ "$id" != "" ]]; then
