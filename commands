@@ -44,17 +44,23 @@ if [[ -n "$id" ]]; then
 fi
 
 case "$1" in
-  postgresql:admin_console)
-    check_container
+  postgresql:psql)
 
-    PGPASSWORD=$(cat "$DOKKU_ROOT/.postgresql/admin_pw") PGUSER=$PGADMIN psql -p "$postgresql_port" -h localhost postgres
-    ;;
-  postgresql:console)
-    check_container
-    check_app
-    check_exists
+    if [ -z "$2" ]; then    
+        check_container
+        PGPASSWORD=$(cat "$DOKKU_ROOT/.postgresql/admin_pw") PGUSER=$PGADMIN psql -p "$postgresql_port" -h localhost postgres
+    else
+        check_container
+        check_app
+        check_exists
 
-    PGPASSWORD=$(cat "$DOKKU_ROOT/.postgresql/pass_$APP") PGUSER="$APP" psql -p "$postgresql_port" -h localhost "$postgresql_database"
+        if [ ! -r "$DOKKU_ROOT/.postgresql/pass_$APP" ]; then
+            echo ERROR: Database $APP does not exist
+            exit 1 
+        fi
+
+        PGPASSWORD=$(cat "$DOKKU_ROOT/.postgresql/pass_$APP") PGUSER="$APP" psql -p "$postgresql_port" -h localhost "$postgresql_database"
+    fi
     ;;
   postgresql:create)
     check_container
@@ -67,7 +73,7 @@ case "$1" in
         exit 1
     fi
     
-    postgresql_password=$(openssl rand -base64 32|base64)
+    postgresql_password=$(apg -M NCL -m 16 -x 16 -n 1)
     echo $postgresql_password > "$DOKKU_ROOT/.postgresql/pass_$APP"
 
     admin_pw=$(cat "$DOKKU_ROOT/.postgresql/admin_pw")
@@ -125,8 +131,7 @@ SQL
     ;;
   help)
     cat && cat<<EOF
-    postgresql:admin_console Launch a postgresql console as admin user
-    postgresql:console <app> Launch a postgresql console for a given app
+    postgresql:psql <app>    Launch a postgresql console for a given app or as admin user (without appname)
     postgresql:create <app>  Create a Postgresql database
     postgresql:delete <app>  Delete specified Postgresql database
     postgresql:start         Start the Postgresql docker container if it isn't running

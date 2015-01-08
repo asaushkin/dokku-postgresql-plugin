@@ -5,21 +5,26 @@ docker pull "$db_image"
 
 [[ $(lsb_release -cs) = 'trusty' ]] && psql_version="9.3" || psql_version="9.1"
 [[ $(docker run --rm=true "$db_image" lsb_release -cs) = 'trusty' ]] && docker_psql_version="9.3" || docker_psql_version="9.1"
-apt-get -y install "postgresql-client-$psql_version"
+
+apt-get -y install "postgresql-client-$psql_version" apg haveged
 
 if [[ ! -d "$DOKKU_ROOT/.postgresql" ]]; then
-  mkdir -p "$DOKKU_ROOT/.postgresql"
-  mkdir -p "$DOKKU_ROOT/.postgresql/data"
-  docker run "$db_image" tar -cvp -C "/var/lib/postgresql/$docker_psql_version/main" ./ | tar -xv -C "$DOKKU_ROOT/.postgresql/data/" -f -
-  docker run "$db_image" chown -R postgres:postgres "/var/lib/postgresql/$docker_psql_version/main"
 
-  if [[ ! -f "$DOKKU_ROOT/.postgresql/admin_pw" ]]; then
-    admin_pass=$(openssl rand -base64 32|base64)
-    echo $admin_pass > "$DOKKU_ROOT/.postgresql/admin_pw"
+    mkdir -p "$DOKKU_ROOT/.postgresql/data"
+    mkdir -p "$DOKKU_ROOT/.postgresql/etc"
 
-    chown dokku: "$DOKKU_ROOT/.postgresql"
-    chown dokku: "$DOKKU_ROOT/.postgresql/admin_pw"
+    docker run "$db_image" tar -cvp -C "/var/lib/postgresql/$docker_psql_version/main" ./ | tar -xv -C "$DOKKU_ROOT/.postgresql/data/" -f -
+    docker run "$db_image" tar -cvp -C "/etc/postgresql/$docker_psql_version/main" ./ | tar -xv -C "$DOKKU_ROOT/.postgresql/etc/" -f -
 
-    docker run -v "$DOKKU_ROOT/.postgresql/data":"/var/lib/postgresql/$docker_psql_version/main" "$db_image" su postgres -c "/usr/lib/postgresql/$docker_psql_version/bin/postgres --single -D /var/lib/postgresql/$docker_psql_version/main -c config_file=/etc/postgresql/$docker_psql_version/main/postgresql.conf <<< \"ALTER USER postgres PASSWORD '${admin_pass}';\""
-  fi
+    if [[ ! -f "$DOKKU_ROOT/.postgresql/admin_pw" ]]; then
+        admin_pass=$(apg -M NCL -m 16 -x 16 -n 1)
+        echo $admin_pass > "$DOKKU_ROOT/.postgresql/admin_pw"
+
+        chown dokku: "$DOKKU_ROOT/.postgresql"
+        chown dokku: "$DOKKU_ROOT/.postgresql/admin_pw"
+
+        docker run -v "$DOKKU_ROOT/.postgresql/data":"/var/lib/postgresql/$docker_psql_version/main" -v "$DOKKU_ROOT/.postgresql/etc":"/etc/postgresql/$docker_psql_version/main" "$db_image" su postgres -c "/usr/lib/postgresql/$docker_psql_version/bin/postgres --single -D /var/lib/postgresql/$docker_psql_version/main -c config_file=/etc/postgresql/$docker_psql_version/main/postgresql.conf <<< \"ALTER USER postgres PASSWORD '${admin_pass}';\""
+    fi
+else
+    echo PostgreSQL instance *already* initialized
 fi
