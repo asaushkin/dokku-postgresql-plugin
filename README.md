@@ -8,7 +8,7 @@ Installation
 ------------
 ```
 cd /var/lib/dokku/plugins
-git clone https://github.com/asaushkin/dokku-postgresql-plugin postgresql-9.3
+git clone https://github.com/asaushkin/dokku-postgresql-plugin postgresql
 dokku plugins-install
 ```
 
@@ -17,12 +17,18 @@ Commands
 --------
 ```
 $ dokku help
-     postgresql:psql <app>    Launch a postgresql console for a given app or as admin user (without appname)
-     postgresql:delete <app>  Delete specified PostgreSQL database
-     postgresql:list          List all databases
-     postgresql:start         Start the PostgreSQL docker container if it isn't running
-     postgresql:status        Shows status of PostgreSQL
-     postgresql:stop          Stop the PostgreSQL docker container
+    postgresql:activity                             Show current processes in the postgresql instance
+    postgresql:bash                                 Enter into bash on the PostgreSQL docker container 
+    postgresql:create <app>                         Create a Postgresql database
+    postgresql:dblist                               List all databases
+    postgresql:dbsize                               Size all databases
+    postgresql:delete <app>                         Delete specified Postgresql database
+    postgresql:kill <id>                            Terminate a backend process
+    postgresql:psql <app>                           Launch a postgresql console for a given app or as admin user (without appname)
+    postgresql:start                                Start the Postgresql docker container if it isn't running
+    postgresql:status                               Shows status of Postgresql
+    postgresql:stop                                 Stop the Postgresql docker container
+    postgresql:tsize <app>                          Size all user tables in database <app>
 ```
 
 Usage
@@ -62,7 +68,7 @@ DATABASE_URL: postgres://foo:ultrastrongpassword@172.17.0.28:5432/foo
 Authors
 ------------
 
-Andrew G. Saushkin <asaushkin@gmail.com>
-Jeffery Utter https://github.com/jeffutter/dokku-postgresql-plugin
+* Andrew G. Saushkin <asaushkin@gmail.com>
+* Jeffery Utter (origin: https://github.com/jeffutter/dokku-postgresql-plugin)
 
 

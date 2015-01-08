@@ -197,18 +197,18 @@ order by pg_relation_size( quote_ident( table_schema ) || '.' || quote_ident( ta
 
     help)
         cat && cat<<EOF
-    postgresql:psql <app>    Launch a postgresql console for a given app or as admin user (without appname)
-    postgresql:create <app>  Create a Postgresql database
-    postgresql:delete <app>  Delete specified Postgresql database
-    postgresql:start         Start the Postgresql docker container if it isn't running
-    postgresql:stop          Stop the Postgresql docker container
-    postgresql:bash          Enter into bash on the PostgreSQL docker container 
-    postgresql:status        Shows status of Postgresql
-    postgresql:dblist        List all databases
-    postgresql:dbsize        Size all databases
-    postgresql:tsize <app>   Size all user tables in database <app>
-    postgresql:activity      Show current processes in the postgresql instance
-    postgresql:kill <id>     Terminate a backend process
+    postgresql:psql <app>                           Launch a postgresql console for a given app or as admin user (without appname)
+    postgresql:create <app>                         Create a Postgresql database
+    postgresql:delete <app>                         Delete specified Postgresql database
+    postgresql:start                                Start the Postgresql docker container if it isn't running
+    postgresql:stop                                 Stop the Postgresql docker container
+    postgresql:bash                                 Enter into bash on the PostgreSQL docker container 
+    postgresql:status                               Shows status of Postgresql
+    postgresql:dblist                               List all databases
+    postgresql:dbsize                               Size all databases
+    postgresql:tsize <app>                          Size all user tables in database <app>
+    postgresql:activity                             Show current processes in the postgresql instance
+    postgresql:kill <id>                            Terminate a backend process
 EOF
     ;;
 esac
