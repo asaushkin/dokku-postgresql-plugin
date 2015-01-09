@@ -58,6 +58,7 @@ SQL
 }
 
 id=$(docker ps | grep "$db_image" |  awk '{print $1}')
+ip=$(ifconfig docker0  | grep 'inet addr:'| grep -v '127.0.0.1' | cut -d: -f2 | awk '{ print $1}')
 
 case "$1" in
     postgresql:psql)
@@ -100,8 +101,15 @@ case "$1" in
         fi
 
         if [[ -d "$DOKKU_ROOT/$APP" ]]; then
-            dokku config:set "$APP" DATABASE_URL="postgres://${APP}:$(appuser_password)@localhost:5432/${APP}"
+            dokku config:set "$APP" DATABASE_URL="postgres://${APP}:$(appuser_password)@${ip}:5432/${APP}"
         fi
+    ;;
+
+    postgresql:url)
+        check_container
+        check_app
+
+        echo "DATABASE_URL=\"postgres://${APP}:$(appuser_password)@${ip}:5432/${APP}\""
     ;;
 
     postgresql:delete)
@@ -202,6 +210,7 @@ order by pg_relation_size( quote_ident( table_schema ) || '.' || quote_ident( ta
     postgresql:tsize <app>                          Size all user tables in database <app>
     postgresql:activity                             Show current processes in the postgresql instance
     postgresql:kill <id>                            Terminate a backend process
+    postgresql:url <app>                            Show an application DATABASE_URL
 EOF
     ;;
 esac

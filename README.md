@@ -29,6 +29,7 @@ $ dokku help
     postgresql:status                               Shows status of Postgresql
     postgresql:stop                                 Stop the Postgresql docker container
     postgresql:tsize <app>                          Size all user tables in database <app>
+    postgresql:url <app>                            Show an application DATABASE_URL
 ```
 
 Usage
