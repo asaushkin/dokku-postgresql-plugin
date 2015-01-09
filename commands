@@ -57,6 +57,10 @@ SQL
     fi
 }
 
+url() {
+    echo "DATABASE_URL=\"postgres://${APP}:$(appuser_password)@${ip}:5432/${APP}\""
+}
+
 id=$(docker ps | grep "$db_image" |  awk '{print $1}')
 ip=$(ifconfig docker0  | grep 'inet addr:'| grep -v '127.0.0.1' | cut -d: -f2 | awk '{ print $1}')
 
@@ -101,15 +105,17 @@ case "$1" in
         fi
 
         if [[ -d "$DOKKU_ROOT/$APP" ]]; then
-            dokku config:set "$APP" DATABASE_URL="postgres://${APP}:$(appuser_password)@${ip}:5432/${APP}"
+            dokku config:set "$APP" $(url)
+        else
+            url
         fi
     ;;
 
     postgresql:url)
         check_container
         check_app
-
-        echo "DATABASE_URL=\"postgres://${APP}:$(appuser_password)@${ip}:5432/${APP}\""
+        
+        url
     ;;
 
     postgresql:delete)
